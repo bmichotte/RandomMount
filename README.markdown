@@ -31,4 +31,4 @@ This addon perfectly fit my needs but it may be bugged. Use at your own risk. If
 
 License
 -------
-This addon is under the MIT license. (see [License File](https://github.com/bmichotte/RandomMount/blob/master/RandomMount/LICENSE))
+This addon is under the MIT license. (see [License File](https://github.com/bmichotte/RandomMount/blob/master/LICENSE))
