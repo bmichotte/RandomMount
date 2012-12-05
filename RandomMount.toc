@@ -1,8 +1,8 @@
-## Interface: 50001
+## Interface: 50100
 ## Title: Random Mounts
 ## Notes: Mount / Dismount a random mount
 ## Author: bmichotte
-## Version: 0.2
+## Version: 0.3
 ## X-Category: Interface Enhancements 
 ## SavedVariables: RandomMountsDB
 RandomMount.lua

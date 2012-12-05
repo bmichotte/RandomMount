@@ -6,10 +6,8 @@ function frame:OnEvent(event, arg1)
 	if event == "ADDON_LOADED" and arg1 == "RandomMount" then
 		if RandomMountsDB == nil then
 			RandomMountsDB = {
-				fly = {},
-				swim = {},
-				normal = {},
-				pets = {}
+				mounts = {},
+				db_version = 51000
 			}
 		end
 		
@@ -19,44 +17,78 @@ function frame:OnEvent(event, arg1)
 		C_PetJournal.AddAllPetTypesFilter()
 		C_PetJournal.AddAllPetSourcesFilter()
 		C_PetJournal.ClearSearchFilter()
+		
+		frame:initPetBattleFrame()
 	end
 end
 
-local function defaultFunc(L, key)
-	return key
-end
-local L = setmetatable({}, {__index=defaultFunc})
-if (GetLocale() == "frFR") then
-	L["Usage:"] = "Utilisation"
-	L["/%s option"] = "/%s options"
-	L["Options:"] = "Options"
-	L[" - mount: Mount or dismount"] = " - mount: Monte ou descend"
-	L[" - pet: Invoke or dismiss your pet"] = " - pet: Invoque ou renvoie un compagnon"
-	L[" - list: List your saved mounts and pets"] = " - list: Liste vos montures et compagnons enregistrées"
-	L[" - add type spellID: add a mount/pet (type=F,S,N,P for fly,swim,normal,pet)"] = " - add type sortID: ajoute une monture/un compagnon (type=F,S,N,P pour volante,nage,normale,compagnon)"
-	L[" - del type spellID: remove a mount/pet from the specified type"] = " - del type sortID: supprime une monture/un compagnon pour le type spécifié"
-	L["   - %s (spellID: %s)"] = "   - %s (sortID: %s)"
-	L["|cffff0000Invalid type : %s|r"] = "|cffff0000Type invalide : %s|r"
-	L["Valid types are : F (fly), S (swim), N (normal) and P (pet)"] = "Les types valides sont F (volante), S (nage), N (normale) et P (compagnon)"
-	L["%s already added to %s %s"] = "%s est déjà ajoutée aux %s %s"
-	L["%s added to %s %s"] = "%s a été ajoutée aux %s %s"
-	L["%s removed from %s %s"] = "%s a été supprimée des %s %s"
-	L["%s was not in %s %s"] = "%s ne se trouve pas dans les %s %s"
-	L["Invoking %s"] = "Invocation de %s"
-	L["Missing type and/or spellID"] = "type et/ou sortID manquant"
-	L["On a flying mount !"] = "Sur une monture volante !"
-	L["No mounts saved"] = "Aucune monture sauvegardée"
-	L["No pets saved"] = "Aucun compagnon sauvegardé"
-	L["You don't own mount ID : %s"] = "Vous ne possédez pas la monture : %s"
-	L["You don't own pet ID : %s"] = "Vous ne possédez pas le compagnon : %s"
-	L["fly"] = "volante"
-	L["swim"] = "nage"
-	L["normal"] = "normale"
-	L["pets"] = "compagnons"
-	L["mounts"] = "montures"
-else
-end
+local L = setmetatable(GetLocale() == "frFR" and {
+	["Usage:"] = "Utilisation",
+	["/%s option"] = "/%s options",
+	["Options:"] = "Options",
+	[" - mount: Mount or dismount"] = " - mount: Monte ou descend",
+	[" - pet: Invoke or dismiss your pet"] = " - pet: Invoque ou renvoie un compagnon",
+	["Invoking %s"] = "Invocation de %s",
+	["On a flying mount !"] = "Sur une monture volante !",
+	["No mounts saved"] = "Aucune monture sauvegardée",
+	["No pets saved"] = "Aucun compagnon sauvegardé",
+	["Add or remove this mount for favorites"] = "Ajoute ou supprime cette monture des favoris",
+	["Favorite mount"] = "Monture favorite"
+} or {}, {__index=function(t,i) return i end})
 
+
+function frame:initPetBattleFrame()
+	local checkbox = CreateFrame("CheckButton", "randomMount_FavoriteMount", MountJournal.MountDisplay, "ChatConfigCheckButtonTemplate")
+	checkbox:SetPoint("TOPLEFT", 10, -10)
+	checkbox.tooltip = L["Add or remove this mount for favorites"]
+	_G[checkbox:GetName() .. "Text"]:SetText(L["Favorite mount"]);
+	checkbox:SetScript("OnClick", function()
+		for i = 1, #MountJournal.ListScrollFrame.buttons do
+			local b = _G["MountJournalListScrollFrameButton"..i]
+			if b.selectedTexture:IsShown() then
+				local spellID = b.spellID
+				--local _, creatureName, spellID, _, _ = GetCompanionInfo("MOUNT", i)
+				
+				if checkbox:GetChecked() then
+					found = false
+					for i,v in pairs(RandomMountsDB['mounts']) do
+						if v == spellID then
+							found = true
+						end
+					end
+					if not found then
+						table.insert(RandomMountsDB['mounts'], spellID)
+					end
+				else
+					for i,v in pairs(RandomMountsDB['mounts']) do
+						print(i.." "..v)
+						if v == spellID then
+							table.remove(RandomMountsDB['mounts'], i)
+						end
+					end
+				end
+			end
+		end
+	end)
+	local function setSelectedCheckbox()
+		for i = 1, #MountJournal.ListScrollFrame.buttons do
+			local b = _G["MountJournalListScrollFrameButton"..i]
+			if b.selectedTexture:IsShown() then
+				local spellID = b.spellID
+				found = false
+				for i,v in pairs(RandomMountsDB['mounts']) do
+					if v == spellID then
+						found = true
+					end
+				end
+				randomMount_FavoriteMount:SetChecked(found)
+			end
+		end
+	end  
+	hooksecurefunc("MountJournal_UpdateMountList", setSelectedCheckbox)
+	MountJournalListScrollFrame:HookScript("OnVerticalScroll", setSelectedCheckbox)
+	MountJournalListScrollFrame:HookScript("OnMouseWheel", setSelectedCheckbox)
+end
 frame:SetScript("OnEvent", frame.OnEvent)
 
 local _G = _G
@@ -93,9 +125,6 @@ SlashCmdList[name] = function(msg, editbox)
 		print(L["Options:"])
 		print(L[" - mount: Mount or dismount"])
 		print(L[" - pet: Invoke or dismiss your pet"])
-		print(L[" - list: List your saved mounts and pets"])
-		print(L[" - add type spellID: add a mount/pet (type=F,S,N,P for fly,swim,normal,pet)"])
-		print(L[" - del type spellID: remove a mount/pet from the specified type"])
 	else
 		local args = split(msg, " ")
 		if table.getn(args) < 1 then
@@ -108,204 +137,41 @@ SlashCmdList[name] = function(msg, editbox)
 			RandomMount:invokePet()
 		elseif args[1] == "clear" then
 			RandomMount:clear()
-		elseif args[1] == "save" then
-			RandomMount:savePetList()
-		elseif args[1] == "list" then
-			RandomMount:listMounts()
-		elseif args[1] == "add" then
-			if args[2] == nil or args[3] == nil then
-				UIErrorsFrame:AddMessage(L["Missing type and/or spellID"], 1.0, 0.0, 0.0, 53, 5)
-				return
-			end
-			RandomMount:addMount(args[2], tonumber(args[3]))
-		elseif args[1] == "del" then
-			if args[2] == nil or args[3] == nil then
-				UIErrorsFrame:AddMessage(L["Missing type and/or spellID"], 1.0, 0.0, 0.0, 53, 5)
-				return
-			end
-			RandomMount:delMount(args[2], tonumber(args[3]))
+		elseif args[1] == "test" then
+			RandomMount:test()
 		end
 	end
 end
 
-function RandomMount:savePetList()
-	RandomMountsDB["debug"] = {}
-	
-	--[[
-	local _, o = C_PetJournal.GetNumPets(false)
-	for i = 1, o do
-		index, _, _, _, _, _, _, name, _, _, id = C_PetJournal.GetPetInfoByIndex(i, false)
-		table.insert(RandomMountsDB["debug"], name)
-	end	
-	]]--
-end
+function RandomMount:test()
 
-function RandomMount:getMountName(type, spellID)
-	if type == "pets" then
-		local _, o = C_PetJournal.GetNumPets(false)
-	
-		for i = 1, o do
-			index, _, _, _, _, _, _, name, _, _, id = C_PetJournal.GetPetInfoByIndex(i, false)
-			--print(id, name, spellID)
-			if id == spellID then
-				--print(name, index, id)
-				return name, index
-			end
-		end		
-	else
-		for i = 1, GetNumCompanions("MOUNT") do
-			creatureID, name, creatureSpellID, _, _ = GetCompanionInfo("MOUNT", i)
-			--print(name)
-		
-			if creatureSpellID == spellID then
-				return name, i
-			end	
-		end
-	end
-	
-	return nil, nil
 end
 
 function RandomMount:clear()
 	RandomMountsDB = {
-		fly = {},
-		swim = {},
-		normal = {},
-		pets = {}
+		mounts = {},
+		db_version = 51000
 	}
-end
-
-function RandomMount:listMounts()
-	for type, mounts in pairs(RandomMountsDB) do
-		print(string.format("|cffffff00- %s|r", L[type]))
-		for m, id in pairs(mounts) do
-			spellID = id
-			if type == "pets" then
-				spellID = id[1]
-			end
-			--print(id, type, spellID)
-			name, _ = self:getMountName(type, spellID)
-			if name ~= nil then
-				print(string.format(L["   - %s (spellID: %s)"], name, spellID))
-			end
-		end
-	end
-end
-
-function RandomMount:addMount(type, id)
-	localType = ""
-	if type == "F" then localType = "fly"
-	elseif type == "S" then localType = "swim"
-	elseif type == "N" then localType = "normal" 
-	elseif type == "P" then localType = "pets"
-	else
-		print(string.format(L["|cffff0000Invalid type : %s|r"], L[type]))
-		print(L["Valid types are : F (fly), S (swim), N (normal) and P (pet)"])
-		return
-	end
-	
-	name, index = self:getMountName(localType, id)
-	-- check if we own the mount
-	if nil == name then
-		if localType == "pets" then
-			print(string.format(L["You don't own pet ID : %s"], id))
-		else
-			print(string.format(L["You don't own mount ID : %s"], id))
-		end
-		return
-	end
-	
-	companion = "mounts"
-	if localType == "pets" then
-		companion = "pets"
-	end
-	
-	if RandomMountsDB[localType] == nil then
-		RandomMountsDB[localType] = {}
-	end
-	
-	-- check if mount no yet added
-	for i, v in ipairs(RandomMountsDB[localType]) 
-	do
-		if v == id then
-			print(string.format(L["%s already added to %s %s"], name, L[companion], L[localType]))
-			return
-		end
-	end
-	
-	-- add the mount
-	print(string.format(L["%s added to %s %s"], name, L[companion], L[localType]))
-	
-	if localType == "pets" then
-		table.insert(RandomMountsDB[localType], { id, index })
-	else
-		table.insert(RandomMountsDB[localType], id)
-	end
-end
-
-function RandomMount:delMount(type, id)
-	localType = ""
-	if type == "F" then localType = "fly"
-	elseif type == "S" then localType = "swim"
-	elseif type == "N" then localType = "normal"  
-	elseif type == "P" then localType = "pets"
-	else
-		print(string.format(L["|cffff0000Invalid type : %s|r"], L[type]))
-		print(L["Valid types are : F (fly), S (swim), N (normal) and P (pet)"])		
-		return
-	end
-	
-	name, index = self:getMountName(localType, id)
-	-- check if we own the mount
-	if nil == name then
-		print(string.format(L["You don't own mount ID : %s"], id))
-		return
-	end	
-	
-	if RandomMountsDB[localType] == nil then
-		RandomMountsDB[localType] = {}
-	end
-	
-	companion = "mounts"
-	if localType == "pets" then
-		companion = "pets"
-	end
-	
-	for i, v in ipairs(RandomMountsDB[localType]) 
-	do
-		spellID = v
-		if localType == "pets" then
-			spellID = v[1]
-		end
-		
-		if spellID == id then
-			print(string.format(L["%s removed from %s %s"], name, L[companion], L[localType]))
-			table.remove(RandomMountsDB[localType], i)
-			return
-		end
-	end
-	
-	companion = "mounts"
-	if localType == "pets" then
-		companion = "pets"
-	end
-	print(string.format(L["%s was not in %s %s"], name, L[companion], L[localType]))
 end
 
 function RandomMount:invokePet()
 	if IsMounted() and IsFlying() then
 		UIErrorsFrame:AddMessage(L["On a flying mount !"], 1.0, 0.0, 0.0, 53, 5)
 	else
-		local pets = RandomMountsDB["pets"]
-		
-		if table.getn(pets) == 0 then
-			UIErrorsFrame:AddMessage(L["No pets saved"], 1.0, 0.0, 0.0, 53, 5)
-		else
-			local spell = pets[random(#pets)]
-			name, _ = self:getMountName("pets", spell[1])
-			print(string.format(L["Invoking %s"], name))
-			C_PetJournal.SummonPetByID(spell[2])
+		_, numOwned = C_PetJournal.GetNumPets(false)
+		summonedPetGUID = C_PetJournal.GetSummonedPetGUID()
+		local pets = {}
+		for i = 1, numOwned do
+			petID, _, _, customName, _, favorite, _, speciesName, _, _, _, _, _, _, _, _, _ = C_PetJournal.GetPetInfoByIndex(i, false)
+			if summonedPetGUID ~= nil and summonedPetGUID ~= petID then	
+				if favorite then
+					table.insert(pets, { petID, customName or speciesName })
+				end
+			end
 		end
+		local pet = pets[random(#pets)]
+		print(string.format(L["Invoking %s"], pet[2]))
+		C_PetJournal.SummonPetByGUID(pet[1])
 	end
 end
 
@@ -346,48 +212,81 @@ function RandomMount:mountOrDismount()
 			Dismount()
 		end
 	else
-		
-		if IsIndoors() == 1 then 
-			-- we are indoor, let's check if we have a journey form
-			
+		local mounts = {}
+		if IsSwimming() then
+			if "Vashj'ir" == GetRealZoneText() then
+				if IsUsableSpell(75207) then
+					table.insert(mounts, 75207)
+				end
+			end
+			local aquatics = { 98718, 64731 }
+			for _, v in pairs(aquatics) do
+				if IsUsableSpell(v) then
+					table.insert(mounts, v)
+				end
+			end			
+		elseif IsFlyableArea() and self:canFly() then
+			for i = 1, #RandomMountsDB['mounts'] do
+				spellID = RandomMountsDB['mounts'][i]
+				for i = 1, GetNumCompanions("MOUNT") do
+					creatureID, creatureName, creatureSpellID, icon, issummoned, mountType = GetCompanionInfo("MOUNT", i)
+					if creatureSpellID == spellID then
+						if bit.band(mountType, 0x2) == 0x2 then
+							table.insert(mounts, spellID)
+						end
+						
+					end	
+				end
+			end
 		else
-			local mounts = nil
-			if IsSwimming() and "Vashj'ir" == GetRealZoneText() then
-				mounts = RandomMountsDB["swim"]
-			end
-			
-			if IsFlyableArea() and (mounts == nil or table.getn(mounts) == 0) and self:canFly() then
-				mounts = RandomMountsDB["fly"]
-			end
-		
-			if mounts == nil or table.getn(mounts) == 0 then
-				mounts = RandomMountsDB["normal"]
-			end
-		
-			if table.getn(mounts) == 0 then
-				UIErrorsFrame:AddMessage(L["No mounts saved"], 1.0, 0.0, 0.0, 53, 5)
-			else
-				local spellID
-				local max = #mounts
-				local count = 0
-				
-				while true do
-					spellID = mounts[random(#mounts)]
-					if IsUsableSpell(spellID) then
-						break;
-					end
-					if max == count then
-						break;
-					end
-					count = count + 1
+			for i = 1, #RandomMountsDB['mounts'] do
+				spellID = RandomMountsDB['mounts'][i]
+				for i = 1, GetNumCompanions("MOUNT") do
+					creatureID, creatureName, creatureSpellID, icon, issummoned, mountType = GetCompanionInfo("MOUNT", i)
+					if creatureSpellID == spellID then
+						if bit.band(mountType, 0x1) == 0x1 then
+							table.insert(mounts, spellID)
+						end
+					end	
 				end
+			end			
+		end
+		
+		if #mounts == 0 then
+			UIErrorsFrame:AddMessage(L["No mounts saved"], 1.0, 0.0, 0.0, 53, 5)
+		else
+			local spellID
+			local max = #mounts
+			local count = 0
 				
-				name, index = self:getMountName(localType, spellID)
-				if index ~= nil then
-					print(string.format(L["Invoking %s"], name))
-					CallCompanion("MOUNT", index)
+			while true do
+				spellID = mounts[random(#mounts)]
+				if IsUsableSpell(spellID) then
+					break;
 				end
+				if max == count then
+					break;
+				end
+				count = count + 1
+			end
+				
+			name, index = self:getMountName(spellID)
+			if index ~= nil then
+				print(string.format(L["Invoking %s"], name))
+				CallCompanion("MOUNT", index)
 			end
 		end
+		
 	end
+end
+
+function RandomMount:getMountName(spellID)
+	for i = 1, GetNumCompanions("MOUNT") do
+		creatureID, name, creatureSpellID, _, _ = GetCompanionInfo("MOUNT", i)
+		if creatureSpellID == spellID then
+			return name, i
+		end	
+	end
+	
+	return nil, nil
 end
